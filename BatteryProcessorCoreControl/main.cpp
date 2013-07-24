@@ -146,15 +146,11 @@ static void initProcessorControl(int userCoresToKeepOn, mach_port_t host)
 
 static void powerChangeNotificationHandler(__unused void *param_not_used, __unused io_service_t, natural_t messageType, void *messageArgument)
 {
-    if (messageType == kIOMessageSystemWillSleep) {
-        changeCoresState(false);
-    }
-    else if (messageType == kIOMessageSystemHasPoweredOn) {
+    if (messageType == kIOMessageSystemHasPoweredOn) {
         g_force = true;
         powerStateWatcher(0);
     }
-    
-    
+
     IOAllowPowerChange(g_rootPort, (long) messageArgument);
 }
 
