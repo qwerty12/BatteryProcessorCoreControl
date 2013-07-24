@@ -68,19 +68,30 @@ static void changeCoresState(bool disable)
 static void powerStateWatcher(__unused void *param_not_used)
 {
     bool usingBattery = false;
-    
+
     CFTypeRef source = IOPSCopyPowerSourcesInfo();
-	CFArrayRef powerSources = IOPSCopyPowerSourcesList(source);
-    
-    if (CFArrayGetCount(powerSources) > 0) {
-        CFDictionaryRef powerSource = IOPSGetPowerSourceDescription(source, CFArrayGetValueAtIndex(powerSources, 0));
-        if (powerSource) {
-            const void *powerSourceState = CFDictionaryGetValue(powerSource, CFSTR(kIOPSPowerSourceStateKey));
-            if (powerSourceState)
-                usingBattery = CFStringCompare((CFStringRef) powerSourceState, CFSTR(kIOPSBatteryPowerValue), 0) == kCFCompareEqualTo;
+    CFArrayRef powerSources = IOPSCopyPowerSourcesList(source);
+
+    CFIndex count;
+    if ((count = CFArrayGetCount(powerSources)) > 0)
+    {
+        for (int i = 0; i < count; ++i)
+        {
+            const void *psValue;
+            CFDictionaryRef powerSource = IOPSGetPowerSourceDescription(source, CFArrayGetValueAtIndex(powerSources, i));
+            if (!powerSource)
+                continue;
+            if (CFDictionaryGetValue(powerSource, CFSTR(kIOPSIsPresentKey)) == kCFBooleanFalse)
+                continue;
+            if (CFDictionaryGetValueIfPresent(powerSource, CFSTR(kIOPSTransportTypeKey), &psValue) &&
+                CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSInternalType), 0) == kCFCompareEqualTo)
+            {
+                if (CFDictionaryGetValueIfPresent(powerSource, CFSTR(kIOPSPowerSourceStateKey), &psValue))
+                    usingBattery = CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSBatteryPowerValue), 0) == kCFCompareEqualTo;
+            }
         }
     }
-    
+
     if (g_force || usingBattery != g_prevBatteryState) {
         g_force = false;
         changeCoresState(usingBattery);

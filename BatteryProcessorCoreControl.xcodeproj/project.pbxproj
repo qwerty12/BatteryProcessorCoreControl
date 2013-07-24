@@ -208,7 +208,8 @@
 		43068667179F35BB00B87E81 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				MACOSX_DEPLOYMENT_TARGET = 10.8;
+				CLANG_CXX_LANGUAGE_STANDARD = "compiler-default";
+				MACOSX_DEPLOYMENT_TARGET = 10.7;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx10.8;
 			};
@@ -217,7 +218,8 @@
 		43068668179F35BB00B87E81 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				MACOSX_DEPLOYMENT_TARGET = 10.8;
+				CLANG_CXX_LANGUAGE_STANDARD = "compiler-default";
+				MACOSX_DEPLOYMENT_TARGET = 10.7;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx10.8;
 			};
@@ -242,6 +244,7 @@
 				43068668179F35BB00B87E81 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
