@@ -137,7 +137,7 @@ static void initProcessorControl(int userCoresToKeepOn)
         fprintf(stderr, "You cannot run this on a system with only one processor!\n");
         exit (EXIT_FAILURE);
     }
-    else if (hostInfoData.physical_cpu_max == 2) {
+    else if (hostInfoData.logical_cpu_max == 2) {
         g_coresToKeepOn = 1; //Will always be one on computers with only two cores (although I'm not sure why you'd run this on such a computer)
     }
     else {
