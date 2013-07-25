@@ -40,10 +40,8 @@
 #define EXIT_ON_MACH_ERROR(msg, retval) \
 if (kr != KERN_SUCCESS) { mach_error(msg, kr); exit((retval)); }
 
-#define DEFAULT_NO_OF_CORES_TO_KEEP_ON 2
-
 static bool g_disableHt = false;
-static int g_coresToKeepOn = DEFAULT_NO_OF_CORES_TO_KEEP_ON;
+static int g_coresToKeepOn = 2;
 
 static bool g_prevBatteryState = false;
 static processor_port_array_t g_processorList;
@@ -127,7 +125,7 @@ static void initProcessorControl(int userCoresToKeepOn, mach_port_t host)
         g_coresToKeepOn = 1; //Will always be one on computers with only two cores (although I'm not sure why you'd run this on such a computer)
     }
     else {
-        if (userCoresToKeepOn > 0)
+        if (userCoresToKeepOn > 0 && userCoresToKeepOn < hostInfoData.logical_cpu_max)
             g_coresToKeepOn = userCoresToKeepOn;
         
         if (g_disableHt) {
@@ -136,11 +134,9 @@ static void initProcessorControl(int userCoresToKeepOn, mach_port_t host)
                 g_disableHt = false;
             }
         }
-        
-        if (g_coresToKeepOn > hostInfoData.logical_cpu_max)
-            g_coresToKeepOn = DEFAULT_NO_OF_CORES_TO_KEEP_ON;
-        
-        g_coresToKeepOn = g_disableHt ? g_coresToKeepOn : g_coresToKeepOn * 2;
+
+        if (!g_disableHt)
+            g_coresToKeepOn *= 2;
     }
 }
 
