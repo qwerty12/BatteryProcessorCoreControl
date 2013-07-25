@@ -42,8 +42,10 @@ if (kr != KERN_SUCCESS) { mach_error(msg, kr); exit((retval)); }
 
 static bool g_prevBatteryState = false;
 static bool g_force = false;
+
+static mach_port_t g_host;
 static processor_port_array_t g_processorList;
-static mach_msg_type_number_t g_processorCount;
+static mach_msg_type_number_t g_processorCount = 0;
 static IONotificationPortRef g_notifyPort;
 static io_connect_t g_rootPort;
 static io_object_t g_notifierObject;
@@ -63,11 +65,7 @@ static void changeCoresState(bool disable)
 {
     mach_msg_type_number_t processorCount = g_processorCount;
 
-    if (!g_disableHt) {
-        while (processorCount-- > g_coresToKeepOn)
-            enableOrDisableCore(disable, processorCount);
-    }
-    else {
+    if (g_disableHt) {
         for (int i = 1, coresKeptOn = 1; i < processorCount; i++) {
             if (i % 2 == 0) {
                 if (coresKeptOn < g_coresToKeepOn) {
@@ -77,6 +75,10 @@ static void changeCoresState(bool disable)
             }
             enableOrDisableCore(disable, i);
         }
+    }
+    else {
+        while (processorCount-- > g_coresToKeepOn)
+            enableOrDisableCore(disable, processorCount);
     }
 }
 
@@ -114,20 +116,20 @@ static void powerStateWatcher(__unused void *param_not_used)
     CFRelease(source);
 }
 
-static void initProcessorControl(int userCoresToKeepOn, mach_port_t host)
+static void initProcessorControl(int userCoresToKeepOn)
 {
     kern_return_t          kr;
     host_basic_info_data_t hostInfoData;
     mach_msg_type_number_t hostCount;
     host_priv_t            hostPriv;
     
-    hostCount = HOST_BASIC_INFO_COUNT;
-    kr = host_info(host, HOST_BASIC_INFO, (host_info_t) &hostInfoData, &hostCount);
-    EXIT_ON_MACH_ERROR("host_info:", kr);
-    
-    kr = host_get_host_priv_port(host, &hostPriv);
+    kr = host_get_host_priv_port(g_host, &hostPriv);
     EXIT_ON_MACH_ERROR("host_get_host_priv_port:", kr);
-    
+
+    hostCount = HOST_BASIC_INFO_COUNT;
+    kr = host_info(g_host, HOST_BASIC_INFO, (host_info_t) &hostInfoData, &hostCount);
+    EXIT_ON_MACH_ERROR("host_info:", kr);
+
     kr = host_processors(hostPriv, &g_processorList, &g_processorCount);
     EXIT_ON_MACH_ERROR("host_processors:", kr);
     
@@ -139,7 +141,7 @@ static void initProcessorControl(int userCoresToKeepOn, mach_port_t host)
         g_coresToKeepOn = 1; //Will always be one on computers with only two cores (although I'm not sure why you'd run this on such a computer)
     }
     else {
-        if (userCoresToKeepOn > 0 && userCoresToKeepOn < hostInfoData.logical_cpu_max)
+        if (userCoresToKeepOn > 0 && userCoresToKeepOn <= hostInfoData.logical_cpu_max)
             g_coresToKeepOn = userCoresToKeepOn;
 
         if (g_disableHt && hostInfoData.physical_cpu_max * 2 != hostInfoData.logical_cpu_max) {
@@ -163,7 +165,7 @@ static void powerChangeNotificationHandler(__unused void *param_not_used, __unus
 }
 
 
-static void initPowerStateMonitoring(mach_port_t host)
+static void initPowerStateMonitoring()
 {
     g_rootPort = IORegisterForSystemPower(0, &g_notifyPort,
                                           powerChangeNotificationHandler,
@@ -184,18 +186,27 @@ static void sighandler(__unused int param_not_used)
 
 static void cleanup()
 {
-    CFRunLoopRemoveSource(CFRunLoopGetCurrent(), IONotificationPortGetRunLoopSource(g_notifyPort), kCFRunLoopDefaultMode);
-    IODeregisterForSystemPower(&g_notifierObject);
+    if (g_notifyPort != MACH_PORT_NULL)
+        CFRunLoopRemoveSource(CFRunLoopGetCurrent(), IONotificationPortGetRunLoopSource(g_notifyPort), kCFRunLoopDefaultMode);
+    
+    if (g_notifierObject != MACH_PORT_NULL)
+        IODeregisterForSystemPower(&g_notifierObject);
+
     IOServiceClose(g_rootPort);
-    IONotificationPortDestroy(g_notifyPort);
-    changeCoresState(false);
-    (void) vm_deallocate(mach_task_self(), (vm_address_t) g_processorList, g_processorCount * sizeof(processor_t *));
+
+    if (g_notifyPort != MACH_PORT_NULL)
+        IONotificationPortDestroy(g_notifyPort);
+
+    if (g_processorCount > 0) {
+        changeCoresState(false);
+        (void) vm_deallocate(mach_task_self(), (vm_address_t) g_processorList, g_processorCount * sizeof(processor_t *));
+    }
 }
 
 int main (int argc, char *argv[])
 {
-    mach_port_t host = mach_host_self();
-    
+    g_host = mach_host_self();
+
     int userCoresToKeepOn = 0;
     if (argc > 1)
         userCoresToKeepOn = (int) strtol(argv[1], 0, 10);
@@ -204,15 +215,15 @@ int main (int argc, char *argv[])
             g_disableHt = true;
     }
 
-    initProcessorControl(userCoresToKeepOn, host);
-    initPowerStateMonitoring(host);
-    
+    initProcessorControl(userCoresToKeepOn);
+    initPowerStateMonitoring();
+
     signal(SIGINT, sighandler);
     signal(SIGTERM, sighandler);
-    
+
     CFRunLoopRun();
-    
+
     cleanup();
-    
+
     return EXIT_SUCCESS;
 }
