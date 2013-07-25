@@ -40,26 +40,43 @@
 #define EXIT_ON_MACH_ERROR(msg, retval) \
 if (kr != KERN_SUCCESS) { mach_error(msg, kr); exit((retval)); }
 
-static bool g_disableHt = false;
-static int g_coresToKeepOn = 2;
-
 static bool g_prevBatteryState = false;
+static bool g_force = false;
 static processor_port_array_t g_processorList;
 static mach_msg_type_number_t g_processorCount;
 static IONotificationPortRef g_notifyPort;
 static io_connect_t g_rootPort;
 static io_object_t g_notifierObject;
-static bool g_force = false;
+
+static bool g_disableHt = false;
+static int g_coresToKeepOn = 2;
+
+static inline void enableOrDisableCore(bool disable, int core)
+{
+    if (disable)
+        processor_exit(g_processorList[core]);
+    else
+        processor_start(g_processorList[core]);
+}
 
 static void changeCoresState(bool disable)
 {
-    mach_msg_type_number_t i = g_processorCount;
-    
-    while (i-- > g_coresToKeepOn) {
-        if (disable)
-            processor_exit(g_processorList[i]);
-        else
-            processor_start(g_processorList[i]);
+    mach_msg_type_number_t processorCount = g_processorCount;
+
+    if (!g_disableHt) {
+        while (processorCount-- > g_coresToKeepOn)
+            enableOrDisableCore(disable, processorCount);
+    }
+    else {
+        for (int i = 1, coresKeptOn = 1; i < processorCount; i++) {
+            if (i % 2 == 0) {
+                if (coresKeptOn < g_coresToKeepOn) {
+                    coresKeptOn++;
+                    continue;
+                }
+            }
+            enableOrDisableCore(disable, i);
+        }
     }
 }
 
@@ -122,13 +139,13 @@ static void initProcessorControl(int userCoresToKeepOn, mach_port_t host)
         g_coresToKeepOn = 1; //Will always be one on computers with only two cores (although I'm not sure why you'd run this on such a computer)
     }
     else {
+        if (userCoresToKeepOn > 0 && userCoresToKeepOn < hostInfoData.logical_cpu_max)
+            g_coresToKeepOn = userCoresToKeepOn;
+
         if (g_disableHt && hostInfoData.physical_cpu_max * 2 != hostInfoData.logical_cpu_max) {
             printf("Overriding disable HT setting and setting to false, your system doesn't appear to have HT\n");
             g_disableHt = false;
         }
-
-        if (userCoresToKeepOn > 0 && userCoresToKeepOn < hostInfoData.logical_cpu_max)
-            g_coresToKeepOn = userCoresToKeepOn;
 
         if (!g_disableHt)
             g_coresToKeepOn *= 2;
