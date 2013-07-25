@@ -147,7 +147,7 @@ static void initProcessorControl(int userCoresToKeepOn, mach_port_t host)
             g_disableHt = false;
         }
 
-        if (!g_disableHt)
+        if (!g_disableHt && hostInfoData.physical_cpu_max != hostInfoData.logical_cpu_max)
             g_coresToKeepOn *= 2;
     }
 }
