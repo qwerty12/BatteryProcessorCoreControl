@@ -71,10 +71,8 @@ static void powerStateWatcher(__unused void *param_not_used)
     CFArrayRef powerSources = IOPSCopyPowerSourcesList(source);
 
     CFIndex count;
-    if ((count = CFArrayGetCount(powerSources)) > 0)
-    {
-        for (int i = 0; i < count; ++i)
-        {
+    if ((count = CFArrayGetCount(powerSources)) > 0) {
+        for (int i = 0; i < count; ++i) {
             const void *psValue;
             CFDictionaryRef powerSource = IOPSGetPowerSourceDescription(source, CFArrayGetValueAtIndex(powerSources, i));
             if (!powerSource)
@@ -82,8 +80,7 @@ static void powerStateWatcher(__unused void *param_not_used)
             if (CFDictionaryGetValue(powerSource, CFSTR(kIOPSIsPresentKey)) == kCFBooleanFalse)
                 continue;
             if (CFDictionaryGetValueIfPresent(powerSource, CFSTR(kIOPSTransportTypeKey), &psValue) &&
-                CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSInternalType), 0) == kCFCompareEqualTo)
-            {
+                CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSInternalType), 0) == kCFCompareEqualTo) {
                 if (CFDictionaryGetValueIfPresent(powerSource, CFSTR(kIOPSPowerSourceStateKey), &psValue))
                     usingBattery = CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSBatteryPowerValue), 0) == kCFCompareEqualTo;
             }
@@ -125,15 +122,13 @@ static void initProcessorControl(int userCoresToKeepOn, mach_port_t host)
         g_coresToKeepOn = 1; //Will always be one on computers with only two cores (although I'm not sure why you'd run this on such a computer)
     }
     else {
+        if (g_disableHt && hostInfoData.physical_cpu_max * 2 != hostInfoData.logical_cpu_max) {
+            printf("Overriding disable HT setting and setting to false, your system doesn't appear to have HT\n");
+            g_disableHt = false;
+        }
+
         if (userCoresToKeepOn > 0 && userCoresToKeepOn < hostInfoData.logical_cpu_max)
             g_coresToKeepOn = userCoresToKeepOn;
-        
-        if (g_disableHt) {
-            if (hostInfoData.physical_cpu_max * 2 != hostInfoData.logical_cpu_max) {
-                printf("Overriding disable HT setting and setting to false, your system doesn't appear to have HT\n");
-                g_disableHt = false;
-            }
-        }
 
         if (!g_disableHt)
             g_coresToKeepOn *= 2;
@@ -187,10 +182,11 @@ int main (int argc, char *argv[])
     int userCoresToKeepOn = 0;
     if (argc > 1)
         userCoresToKeepOn = (int) strtol(argv[1], 0, 10);
-    if (argc > 2)
+    if (argc > 2) {
         if (!strcmp(argv[2], "--ht-off"))
             g_disableHt = true;
-    
+    }
+
     initProcessorControl(userCoresToKeepOn, host);
     initPowerStateMonitoring(host);
     
